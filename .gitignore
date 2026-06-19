@@ -20,3 +20,10 @@
 /.claude/skills/
 /.agents/cache/
 # END skills managed runtime artifacts
+
+# Mined data (derived artifact, not source)
+/data/tweets.csv
+
+# Python bytecode caches
+__pycache__/
+*.pyc

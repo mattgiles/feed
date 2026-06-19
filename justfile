@@ -5,10 +5,16 @@
 #   just auth-setup   # one-time Google Cloud + OAuth bootstrap (first time only)
 #   just auth          # (re)login, scoped to Gmail
 #   just auth-check    # verify the active credential can reach Gmail
+#   just mine          # mine self-emailed tweet links into data/tweets.csv
 
 # List available recipes.
 default:
     @just --list
+
+# Mine self-emailed tweet/X links from Gmail into data/tweets.csv.
+# Pass extra args through, e.g. `just mine --newer-than 30d --out data/recent.csv`.
+mine *ARGS:
+    uv run python scripts/mine_tweets.py {{ARGS}}
 
 # Install the gws CLI via Homebrew.
 install:
