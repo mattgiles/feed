@@ -16,6 +16,32 @@ default:
 mine *ARGS:
     uv run python scripts/mine_tweets.py {{ARGS}}
 
+# Install the Node toolchain (tsx + pi-web-access) for the enrich script.
+node-install:
+    #!/bin/sh
+    set -eu
+    if ! command -v npm >/dev/null 2>&1; then
+        echo "error: npm is not on your PATH. Install Node.js first." >&2
+        exit 1
+    fi
+    npm install
+
+# Enrich mined tweet links to their ultimate content -> data/tweets_enriched.jsonl.
+# Pass extra args through, e.g. `just enrich --limit 5 --concurrency 4`.
+# Run `just node-install` once first to install the toolchain.
+enrich *ARGS:
+    #!/bin/sh
+    set -eu
+    if ! command -v npx >/dev/null 2>&1; then
+        echo "error: npx is not on your PATH. Install Node.js and run 'just node-install'." >&2
+        exit 1
+    fi
+    npx tsx scripts/enrich_tweets.ts {{ARGS}}
+
+# Join the locked taxonomy onto every tweet row -> data/tweets_categorized.csv.
+categorize *ARGS:
+    uv run python scripts/categorize_tweets.py {{ARGS}}
+
 # Install the gws CLI via Homebrew.
 install:
     #!/bin/sh

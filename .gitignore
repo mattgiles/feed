@@ -21,8 +21,13 @@
 /.agents/cache/
 # END skills managed runtime artifacts
 
-# Mined data (derived artifact, not source)
+# Node install tree (root toolchain for the enrich script)
+/node_modules/
+
+# Mined / derived data artifacts (not source)
 /data/tweets.csv
+/data/tweets_enriched.jsonl
+/data/tweets_categorized.csv
 
 # Python bytecode caches
 __pycache__/
