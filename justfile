@@ -42,6 +42,12 @@ enrich *ARGS:
 categorize *ARGS:
     uv run python scripts/categorize_tweets.py {{ARGS}}
 
+# Build a self-contained interactive HTML viewer of categorized tweets -> data/tweets_viewer.html.
+# Joins data/tweets.csv x data/tweet_categories.csv (overlaying data/tweets_enriched.jsonl when present).
+# Pass extra args through, e.g. `just viewer --out data/feed.html`.
+viewer *ARGS:
+    uv run python scripts/build_viewer.py {{ARGS}}
+
 # Install the gws CLI via Homebrew.
 install:
     #!/bin/sh

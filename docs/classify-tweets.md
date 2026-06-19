@@ -14,6 +14,7 @@ per-tweet category back out to all rows.
 | `data/categories.json` | **committed** (decision) | human lock (step 2) |
 | `data/tweet_categories.csv` | **committed** (decision) | agent classify (step 3) |
 | `data/tweets_categorized.csv` | gitignored (derived) | `just categorize` |
+| `data/tweets_viewer.html` | gitignored (derived) | `just viewer` |
 
 Each enriched record (one per `message_id`) carries the tweet text
 (`tweet.text`) plus the extracted ultimate content for every outbound link
