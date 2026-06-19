@@ -21,6 +21,7 @@
 /data/tweets.csv
 /data/tweets_enriched.jsonl
 /data/tweets_categorized.csv
+/data/tweets_viewer.html
 
 # Python bytecode caches
 __pycache__/
