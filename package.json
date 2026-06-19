@@ -1,0 +1,13 @@
+{
+  "name": "feed",
+  "private": true,
+  "type": "module",
+  "description": "Tooling for enriching self-emailed tweet links to their ultimate content.",
+  "scripts": {
+    "enrich": "tsx scripts/enrich_tweets.ts"
+  },
+  "devDependencies": {
+    "pi-web-access": "^0.10.7",
+    "tsx": "^4.19.2"
+  }
+}
