@@ -1,0 +1,10 @@
+{
+  "packages": [
+    "git:github.com/mattgiles/perk@main",
+    "npm:@tombell/pi-diff",
+    "npm:pi-subagents",
+    {
+      "source": "npm:pi-web-access"
+    }
+  ]
+}

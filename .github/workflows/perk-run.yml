@@ -1,0 +1,102 @@
+# Managed by `perk init` (repaired by `perk doctor --fix`) — do not edit by hand.
+# The GitHub Actions runner for a perk `--remote` drive (Objective #137 Node 2.2; contracts.md
+# §8.14). The dispatcher (perk/run/runner.py GitHubActionsRunner) verifies the run by matching
+# the perk `run_id` embedded in `run-name`, so the run-name MUST carry `${{ inputs.run_id }}`.
+name: perk-run
+run-name: "perk ${{ inputs.stage }} · plan #${{ inputs.plan }} · ${{ inputs.run_id }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "perk run_id (ULID) — correlation key, embedded in run-name for discovery"
+        required: true
+        type: string
+      stage:
+        description: "Stage to drive headlessly (implement | address)"
+        required: true
+        type: string
+      plan:
+        description: "Plan issue number"
+        required: true
+        type: string
+      base:
+        description: "Base branch the plan branch targets"
+        required: true
+        type: string
+      smoke:
+        description: "Smoke mode: validate secrets + confirm runner start, then exit (no drive)."
+        required: false
+        default: "false"
+        type: string
+
+# One in-flight run per plan; a newer dispatch supersedes an older one (mirrors erk's
+# implement-plan-${{ … }} group).
+concurrency:
+  group: perk-run-${{ inputs.plan }}
+  cancel-in-progress: true
+
+jobs:
+  drive:
+    if: vars.PERK_ENABLED != 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Validate required secrets
+        env:
+          PERK_GH_PAT: ${{ secrets.PERK_GH_PAT }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -z "$PERK_GH_PAT" ]; then
+            echo "::error::PERK_GH_PAT secret is missing; add a repo-scoped PAT secret."
+            exit 1
+          fi
+          if [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$OPENAI_API_KEY" ]; then
+            echo "::error::No model key set; add ANTHROPIC_API_KEY or OPENAI_API_KEY."
+            exit 1
+          fi
+
+      - name: Smoke check
+        if: inputs.smoke == 'true'
+        run: echo "perk smoke ok — secrets validated, runner reachable (no stage drive)"
+
+      - uses: actions/checkout@v4
+        if: inputs.smoke != 'true'
+        with:
+          token: ${{ secrets.PERK_GH_PAT }}
+          fetch-depth: 0
+
+      - uses: ./.github/actions/perk-remote-setup
+        if: inputs.smoke != 'true'
+
+      - name: Check out the plan branch
+        if: inputs.smoke != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.PERK_GH_PAT }}
+          PLAN: ${{ inputs.plan }}
+        run: |
+          branch="plan-$PLAN"
+          git fetch origin "$branch"
+          git checkout "$branch"
+          # Reset to the remote tip: the plan job may have pushed commits after checkout resolved
+          # github.sha at dispatch time.
+          git reset --hard "origin/$branch"
+
+      - name: Drive the stage headlessly
+        if: inputs.smoke != 'true'
+        env:
+          PERK_GH_PAT: ${{ secrets.PERK_GH_PAT }}
+          GH_TOKEN: ${{ secrets.PERK_GH_PAT }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          perk run-worker \
+            --run-id "${{ inputs.run_id }}" \
+            --stage "${{ inputs.stage }}" \
+            --plan "${{ inputs.plan }}" \
+            --base "${{ inputs.base }}"

@@ -1,0 +1,55 @@
+# Managed by perk init — do not edit by hand.
+sources:
+  astral:
+    url: https://github.com/astral-sh/claude-code-plugins
+    ref: main
+  dagster:
+    url: https://github.com/dagster-io/skills
+    ref: master
+  mattpocock:
+    url: https://github.com/mattpocock/skills
+    ref: main
+  perk:
+    url: https://github.com/mattgiles/perk
+    ref: main
+skills:
+  - source: astral
+    name: ruff
+  - source: astral
+    name: ty
+  - source: astral
+    name: uv
+  - source: dagster
+    name: dignified-python
+  - source: mattpocock
+    name: codebase-design
+  - source: mattpocock
+    name: domain-modeling
+  - source: mattpocock
+    name: grill-with-docs
+  - source: mattpocock
+    name: improve-codebase-architecture
+  - source: perk
+    name: ast-grep
+  - source: perk
+    name: perk-address
+  - source: perk
+    name: perk-expert
+  - source: perk
+    name: perk-implement
+  - source: perk
+    name: perk-learn
+  - source: perk
+    name: perk-learn-docs
+  - source: perk
+    name: perk-objective-author
+  - source: perk
+    name: perk-objective-plan
+  - source: perk
+    name: perk-objective-reconcile
+  - source: perk
+    name: perk-plan
+  - source: perk
+    name: perk-pr-review
+  - source: perk
+    name: perk-replan

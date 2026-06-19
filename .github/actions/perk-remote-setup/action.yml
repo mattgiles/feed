@@ -1,0 +1,36 @@
+# Managed by `perk init` (repaired by `perk doctor --fix`) — do not edit by hand.
+# The composite setup for a perk remote drive (Objective #137 Node 2.2): install the two pinned
+# toolchains, then perk (the exterior CLI) + pi (the interior the Node worker drives) + the Node
+# deps `extension/workerMain.ts` resolves its peer packages from.
+name: perk-remote-setup
+description: "Install perk + pi and the Node worker deps for a headless remote drive."
+runs:
+  using: composite
+  steps:
+    - name: Set up uv (+ Python 3.13)
+      uses: astral-sh/setup-uv@v5
+      with:
+        python-version: "3.13"
+
+    - name: Set up Node 22
+      uses: actions/setup-node@v4
+      with:
+        node-version: "22"
+
+    - name: Install perk
+      shell: bash
+      run: uv tool install git+https://github.com/mattgiles/perk@main
+
+    - name: Install pi
+      shell: bash
+      run: npm install -g @earendil-works/pi-coding-agent
+
+    - name: Install Node worker deps
+      shell: bash
+      run: echo "::error::perk remote drive for consumer repos lands in Node 2.4 (the .pi/git worker-clone + Node peer-dep resolution are not wired yet)."; exit 1
+
+    - name: Configure git identity
+      shell: bash
+      run: |
+        git config --global user.name "perk[bot]"
+        git config --global user.email "perk[bot]@users.noreply.github.com"
