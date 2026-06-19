@@ -1,2 +1,11 @@
-sources: {}
-skills: []
+sources:
+         gws-cli:
+           url: https://github.com/googleworkspace/cli
+           ref: main
+skills:
+        - source: gws-cli
+          name: gws-shared
+        - source: gws-cli
+          name: gws-gmail
+        - source: gws-cli
+          name: gws-gmail-read
