@@ -58,4 +58,4 @@ auth-check:
         echo "error: gws is not installed. Run 'just install' first." >&2
         exit 1
     fi
-    gws gmail users getProfile
+    gws gmail users getProfile --params '{"userId": "me"}'
