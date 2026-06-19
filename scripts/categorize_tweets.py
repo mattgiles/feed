@@ -115,9 +115,11 @@ def main() -> None:
         + (f" (+ {UNCATEGORIZED})" if uncategorized_rows else ""),
         file=sys.stderr,
     )
-    if not 5 <= distinct_locked <= 6:
+    expected = len(valid)
+    if distinct_locked > expected:
         print(
-            f"warning: expected 5-6 locked categories, found {distinct_locked}",
+            f"warning: {distinct_locked} categories used but only {expected} "
+            "are locked in categories.json",
             file=sys.stderr,
         )
 
