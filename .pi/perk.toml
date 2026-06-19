@@ -6,6 +6,16 @@
 # Relative paths resolve against the repo root.
 root = ".worktrees"
 
+[providers]
+plan = "plannotator-plan"
+askuser = "juicesharp-ask-user"
+todo = "juicesharp-todo"
+
+[subagents]
+pr-reviewer = "google/gemini-3.5-flash"
+review-classifier = "google/gemini-3.5-flash"
+objective-explorer = "google/gemini-3.5-flash"
+
 # Worktree setup hook (optional) — shell commands run, in order, inside each
 # freshly created worktree before pi starts (via `bash -lc`, cwd = the worktree).
 # Use it to prepare the environment (dependency installs, codegen). A non-zero

@@ -13,13 +13,6 @@
 /.pi/workflow/markers/
 # END perk managed
 
-# BEGIN skills managed runtime artifacts
-/.agents/state.yaml
-/.agents/local.yaml
-/.agents/skills/
-/.claude/skills/
-/.agents/cache/
-# END skills managed runtime artifacts
 
 # Node install tree (root toolchain for the enrich script)
 /node_modules/
@@ -32,3 +25,11 @@
 # Python bytecode caches
 __pycache__/
 *.pyc
+
+# BEGIN skills managed runtime artifacts
+/.agents/state.yaml
+/.agents/local.yaml
+/.agents/skills/
+/.claude/skills/
+/.agents/cache/
+# END skills managed runtime artifacts
