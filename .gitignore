@@ -22,6 +22,10 @@
 /data/tweets_enriched.jsonl
 /data/tweets_categorized.csv
 /data/tweets_viewer.html
+# Untracked agent-classification staging CSV (bulk-import format for
+# `just import-categories`). The committed source of truth is
+# data/tweet_user_data.json; the committed snapshot is data/tweets_index.jsonl.
+/data/tweet_categories.csv
 
 # Python bytecode caches
 __pycache__/

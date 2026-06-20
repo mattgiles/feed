@@ -38,6 +38,12 @@ enrich *ARGS:
     fi
     npx tsx scripts/enrich_tweets.ts {{ARGS}}
 
+# Merge the agent-classification staging CSV (data/tweet_categories.csv) into
+# the committed source of truth data/tweet_user_data.json (merge/upsert; safe to
+# re-run). Pass extra args through, e.g. `just import-categories --csv data/x.csv`.
+import-categories *ARGS:
+    uv run python scripts/import_categories.py {{ARGS}}
+
 # Join the locked taxonomy onto every tweet row -> data/tweets_categorized.csv.
 categorize *ARGS:
     uv run python scripts/categorize_tweets.py {{ARGS}}
