@@ -4,212 +4,72 @@
 # ///
 """Build a self-contained interactive HTML viewer of categorized tweets.
 
-Joins the mined ``data/tweets.csv`` (one row per self-emailed link) with the
-committed per-tweet mapping ``data/tweet_categories.csv`` by ``message_id``
-(mirroring ``scripts/categorize_tweets.py``), orders categories by the locked
-taxonomy ``data/categories.json``, and — when present — overlays the richer
-``data/tweets_enriched.jsonl`` (author, full tweet text, extracted link titles)
-by ``message_id``. The assembled feed is embedded inline as a JSON island in one
-HTML file that opens by double-click (``file://``, no server, no network).
+Reads the single canonical record stream ``data/tweets_index.jsonl`` (built by
+``scripts/build_index.py``) — no more re-joining CSVs — and orders categories by
+the locked taxonomy ``data/categories.json``. Every per-tweet record already
+carries the tweet metadata, extracted link content (incl. ``preview``), the
+enrichment status, and the user's decisions (``category``/``favorite``/``note``/
+``hidden``/``needs_review``/``suggested_*``). The assembled feed is embedded
+inline as a JSON island in one HTML file that opens by double-click
+(``file://``, no server, no network).
 
-Stdlib-only and deterministic, mirroring ``scripts/categorize_tweets.py`` and
-``scripts/mine_tweets.py`` (``uv run``, no third-party deps). The enriched
-overlay is optional: absent jsonl ⇒ the viewer renders cleanly from the two
-CSVs alone.
+Stdlib-only and deterministic (``uv run``, no third-party deps). The only
+nondeterministic field is the ``generated_at`` timestamp. Run ``just index``
+first to refresh the canonical input.
 """
 
 from __future__ import annotations
 
 import argparse
-import csv
 import json
-import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-UNCATEGORIZED = "uncategorized"
-
-# Match an x.com / twitter.com status permalink and capture the tweet id.
-STATUS_RE = re.compile(
-    r"(?:x\.com|twitter\.com)/(?:i/web/status|[^/]+/status)/(\d+)", re.IGNORECASE
-)
-TWITTER_HOST_RE = re.compile(r"(^|\.)(x\.com|twitter\.com)$", re.IGNORECASE)
-TCO_RE = re.compile(r"\bt\.co/", re.IGNORECASE)
+from tweet_data import UNCATEGORIZED, load_categories, merged_entry
 
 
-def load_categories(path: Path) -> tuple[list[dict[str, str]], set[str]]:
-    """Read categories.json -> (ordered [{name, description}], name set).
+def load_index(path: Path) -> list[dict]:
+    """Read tweets_index.jsonl -> per-tweet payload dicts for the viewer.
 
-    Preserves file order and appends a synthetic trailing ``uncategorized``
-    entry so the UI can render it last.
+    Flattens each canonical index record into the shape the inline viewer
+    script consumes: the tweet metadata hoisted to the top level plus the full
+    ``user`` decisions, ``links`` (with ``preview``), ``enrichment_status``,
+    ``link_error_count``, ``source_urls``, and ``primary_url``. Sorted by
+    ``(date, message_id)`` (the index is already sorted; we re-sort defensively).
     """
-    data = json.loads(path.read_text(encoding="utf-8"))
-    ordered: list[dict[str, str]] = []
-    names: set[str] = set()
-    for c in data.get("categories", []):
-        name = c["name"]
-        ordered.append({"name": name, "description": c.get("description", "")})
-        names.add(name)
-    if not names:
-        print(f"error: no categories found in {path}", file=sys.stderr)
-        sys.exit(1)
-    ordered.append(
-        {"name": UNCATEGORIZED, "description": "Tweets with no category mapping."}
-    )
-    return ordered, names
-
-
-def load_tweet_categories(path: Path, valid: set[str]) -> dict[str, str]:
-    """Read tweet_categories.csv -> {message_id: category}, validating names.
-
-    Exits non-zero (listing the offending rows) if any category is neither a
-    name in ``valid`` nor the literal ``uncategorized`` — the same fail-closed
-    behavior as ``scripts/categorize_tweets.py``.
-    """
-    mapping: dict[str, str] = {}
-    offending: list[tuple[str, str]] = []
-    with path.open(newline="", encoding="utf-8") as fh:
-        reader = csv.DictReader(fh)
-        for row in reader:
-            message_id = (row.get("message_id") or "").strip()
-            category = (row.get("category") or "").strip()
-            if not message_id:
-                continue
-            if category not in valid and category != UNCATEGORIZED:
-                offending.append((message_id, category))
-                continue
-            mapping[message_id] = category
-    if offending:
+    if not path.exists():
         print(
-            f"error: {len(offending)} row(s) in {path} use a category not in "
-            f"categories.json (and not '{UNCATEGORIZED}'):",
+            f"error: index not found: {path} (run 'just index' first)",
             file=sys.stderr,
         )
-        for message_id, category in offending:
-            print(f"  {message_id}: {category!r}", file=sys.stderr)
         sys.exit(1)
-    return mapping
-
-
-def _is_twitter_host(url: str) -> bool:
-    m = re.match(r"^[a-z]+://([^/]+)", url, re.IGNORECASE)
-    host = m.group(1) if m else ""
-    # Strip any userinfo/port.
-    host = host.split("@")[-1].split(":")[0]
-    return bool(TWITTER_HOST_RE.search(host))
-
-
-def _primary_url(urls: list[str]) -> str:
-    """Pick a display URL: prefer an x.com/twitter status permalink, else the
-    first non-t.co URL, else the first URL."""
-    for url in urls:
-        if STATUS_RE.search(url) and _is_twitter_host(url):
-            return url
-    for url in urls:
-        if not TCO_RE.search(url):
-            return url
-    return urls[0] if urls else ""
-
-
-def load_tweets(path: Path) -> dict[str, dict]:
-    """Read tweets.csv and group rows by message_id.
-
-    Keeps the first ``date`` and ``subject`` seen, collects all ``url``s deduped
-    in order (mirroring ``enrich_tweets.ts::groupByMessage``), and derives a
-    primary display URL per group.
-    """
-    groups: dict[str, dict] = {}
-    with path.open(newline="", encoding="utf-8") as fh:
-        reader = csv.DictReader(fh)
-        for row in reader:
-            message_id = (row.get("message_id") or "").strip()
-            if not message_id:
-                continue
-            url = (row.get("url") or "").strip()
-            group = groups.get(message_id)
-            if group is None:
-                group = {
-                    "message_id": message_id,
-                    "date": (row.get("date") or "").strip(),
-                    "subject": (row.get("subject") or ""),
-                    "urls": [],
-                }
-                groups[message_id] = group
-            if url and url not in group["urls"]:
-                group["urls"].append(url)
-    for group in groups.values():
-        group["primary_url"] = _primary_url(group["urls"])
-    return groups
-
-
-def load_enriched(path: Path) -> dict[str, dict]:
-    """Parse tweets_enriched.jsonl -> {message_id: record}, skipping malformed
-    lines. Returns ``{}`` when the file is absent."""
-    if not path.exists():
-        return {}
-    records: dict[str, dict] = {}
+    out: list[dict] = []
     with path.open(encoding="utf-8") as fh:
         for line in fh:
             line = line.strip()
             if not line:
                 continue
-            try:
-                rec = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            mid = rec.get("message_id")
-            if isinstance(mid, str) and mid:
-                records[mid] = rec
-    return records
-
-
-def _enriched_links(rec: dict) -> list[dict[str, str]]:
-    """Map an enriched record's ``ultimate[]`` to {url, title, type}, omitting
-    entries with an empty title."""
-    links: list[dict[str, str]] = []
-    for entry in rec.get("ultimate", []) or []:
-        if not isinstance(entry, dict):
-            continue
-        title = (entry.get("title") or "").strip()
-        url = (entry.get("url") or "").strip()
-        if not title or not url:
-            continue
-        links.append({"url": url, "title": title, "type": entry.get("type") or ""})
-    return links
-
-
-def assemble(
-    tweets: dict[str, dict],
-    mapping: dict[str, str],
-    enriched: dict[str, dict],
-) -> list[dict]:
-    """Join groups × category mapping × enriched overlay into per-tweet dicts,
-    sorted by date ascending then message_id."""
-    out: list[dict] = []
-    for mid, group in tweets.items():
-        category = mapping.get(mid, UNCATEGORIZED)
-        rec = enriched.get(mid)
-        tweet_meta = (rec or {}).get("tweet") or {}
-
-        enriched_text = (tweet_meta.get("text") or "").strip()
-        text = enriched_text if enriched_text else group["subject"]
-        author = tweet_meta.get("author") or None
-        permalink = tweet_meta.get("permalink") or group["primary_url"]
-        links = _enriched_links(rec) if rec else []
-
-        out.append(
-            {
-                "message_id": mid,
-                "date": group["date"],
-                "category": category,
-                "text": text,
-                "author": author,
-                "permalink": permalink,
-                "urls": group["urls"],
-                "links": links,
-            }
-        )
+            rec = json.loads(line)
+            tweet = rec.get("tweet") or {}
+            user = rec.get("user") or {}
+            out.append(
+                {
+                    "message_id": rec.get("message_id", ""),
+                    "date": rec.get("date", ""),
+                    "category": user.get("category", UNCATEGORIZED),
+                    "text": tweet.get("text", ""),
+                    "author": tweet.get("author"),
+                    "permalink": tweet.get("permalink") or rec.get("primary_url", ""),
+                    "primary_url": rec.get("primary_url", ""),
+                    "source_urls": rec.get("source_urls", []),
+                    "links": rec.get("links", []),
+                    "enrichment_status": rec.get("enrichment_status", "missing"),
+                    "link_error_count": rec.get("link_error_count", 0),
+                    "tweet_fetch_status": tweet.get("fetch_status", "unavailable"),
+                    "user": user,
+                }
+            )
     out.sort(key=lambda t: (t["date"], t["message_id"]))
     return out
 
@@ -428,32 +288,34 @@ def render_html(payload: dict, title: str) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--tweets", default="data/tweets.csv")
-    parser.add_argument("--mapping", default="data/tweet_categories.csv")
+    parser.add_argument("--index", default="data/tweets_index.jsonl")
     parser.add_argument("--categories", default="data/categories.json")
-    parser.add_argument("--enriched", default="data/tweets_enriched.jsonl")
     parser.add_argument("--out", default="data/tweets_viewer.html")
     parser.add_argument("--title", default="Tweet feed")
     args = parser.parse_args()
 
-    ordered_categories, valid = load_categories(Path(args.categories))
-    mapping = load_tweet_categories(Path(args.mapping), valid)
-    tweets = load_tweets(Path(args.tweets))
-    enriched = load_enriched(Path(args.enriched))
-    enriched_applied = bool(enriched)
-
-    assembled = assemble(tweets, mapping, enriched)
+    ordered_categories, _valid = load_categories(Path(args.categories))
+    tweets = load_index(Path(args.index))
 
     counts: dict[str, int] = {}
-    for t in assembled:
-        counts[t["category"]] = counts.get(t["category"], 0) + 1
-    total = len(assembled)
+    fav_counts: dict[str, int] = {}
+    enriched_applied = False
+    for t in tweets:
+        cat = t["category"]
+        counts[cat] = counts.get(cat, 0) + 1
+        if t["user"].get("favorite"):
+            fav_counts[cat] = fav_counts.get(cat, 0) + 1
+        if t["enrichment_status"] != "missing":
+            enriched_applied = True
+    total = len(tweets)
+    total_favorites = sum(fav_counts.values())
 
     categories_payload = [
         {
             "name": c["name"],
             "description": c["description"],
             "count": counts.get(c["name"], 0),
+            "favorites": fav_counts.get(c["name"], 0),
         }
         for c in ordered_categories
     ]
@@ -462,8 +324,9 @@ def main() -> None:
         "title": args.title,
         "generated_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
         "categories": categories_payload,
-        "tweets": assembled,
+        "tweets": tweets,
         "total": total,
+        "total_favorites": total_favorites,
         "enriched": enriched_applied,
     }
 
@@ -473,10 +336,10 @@ def main() -> None:
 
     print(f"Wrote viewer with {total} tweets -> {out_path}", file=sys.stderr)
     for c in categories_payload:
-        print(f"  {c['name']}: {c['count']}", file=sys.stderr)
+        print(f"  {c['name']}: {c['count']} ({c['favorites']} \u2665)", file=sys.stderr)
     print(
-        "enriched overlay: "
-        + ("applied" if enriched_applied else "absent (CSV-only)"),
+        "enrichment overlay: "
+        + ("present" if enriched_applied else "absent (index has no enriched records)"),
         file=sys.stderr,
     )
 

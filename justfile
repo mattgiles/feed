@@ -56,11 +56,12 @@ import-categories *ARGS:
     uv run python scripts/import_categories.py {{ARGS}}
 
 # Join the locked taxonomy onto every tweet row -> data/tweets_categorized.csv.
+# Reads the category per message_id from data/tweet_user_data.json.
 categorize *ARGS:
     uv run python scripts/categorize_tweets.py {{ARGS}}
 
-# Build a self-contained interactive HTML viewer of categorized tweets -> data/tweets_viewer.html.
-# Joins data/tweets.csv x data/tweet_categories.csv (overlaying data/tweets_enriched.jsonl when present).
+# Build a self-contained interactive HTML viewer -> data/tweets_viewer.html.
+# Reads the canonical data/tweets_index.jsonl, so run `just index` first.
 # Pass extra args through, e.g. `just viewer --out data/feed.html`.
 viewer *ARGS:
     uv run python scripts/build_viewer.py {{ARGS}}
