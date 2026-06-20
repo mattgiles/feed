@@ -38,6 +38,17 @@ enrich *ARGS:
     fi
     npx tsx scripts/enrich_tweets.ts {{ARGS}}
 
+# Build the canonical per-tweet record stream data/tweets_index.jsonl from
+# tweets.csv x tweets_enriched.jsonl x tweet_user_data.json x categories.json.
+# Fully rewrites the committed index deterministically (idempotent).
+index *ARGS:
+    uv run python scripts/build_index.py {{ARGS}}
+
+# Acceptance gate: validate data/tweets_index.jsonl (+ tweet_user_data.json)
+# against the schema and the locked taxonomy. Exits non-zero on any problem.
+validate *ARGS:
+    uv run python scripts/validate_index.py {{ARGS}}
+
 # Merge the agent-classification staging CSV (data/tweet_categories.csv) into
 # the committed source of truth data/tweet_user_data.json (merge/upsert; safe to
 # re-run). Pass extra args through, e.g. `just import-categories --csv data/x.csv`.
