@@ -26,7 +26,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from tweet_data import UNCATEGORIZED, load_categories, merged_entry
+from tweet_data import UNCATEGORIZED, load_categories
 
 
 def load_index(path: Path) -> list[dict]:
