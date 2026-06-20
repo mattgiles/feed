@@ -94,6 +94,17 @@ needs-review MESSAGE_ID:
     uv run python scripts/edit_user_data.py needs-review {{MESSAGE_ID}}
     @just index
 
+# Record an advisory category suggestion (does not change the category):
+# `just suggest <message_id> <category> "optional reason"`.
+suggest MESSAGE_ID CATEGORY *REASON:
+    uv run python scripts/edit_user_data.py suggest {{MESSAGE_ID}} {{CATEGORY}} {{REASON}}
+    @just index
+
+# Print a plain-text status report over data/tweets_index.jsonl.
+# Pass extra args through, e.g. `just report --low 3`.
+report *ARGS:
+    uv run python scripts/report.py {{ARGS}}
+
 # Join the locked taxonomy onto every tweet row -> data/tweets_categorized.csv.
 # Reads the category per message_id from data/tweet_user_data.json.
 categorize *ARGS:

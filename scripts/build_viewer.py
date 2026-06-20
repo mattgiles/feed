@@ -399,6 +399,8 @@ body.compact .card .editrow { margin-top: 4px; }
       top.appendChild(el("span", "chip err", "fetch error"));
     if (t.enrichment_status && t.enrichment_status !== "ok")
       top.appendChild(el("span", "chip status", t.enrichment_status));
+    if (t.user && t.user.suggested_category && t.user.suggested_category !== effCat(t))
+      top.appendChild(el("span", "chip review", "suggests " + t.user.suggested_category));
     top.appendChild(el("span", "spacer"));
     var heart = el("button", "heart" + (effFav(t) ? " on" : ""), effFav(t) ? "♥" : "♡");
     heart.title = "Toggle favorite";
