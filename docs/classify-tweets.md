@@ -12,9 +12,14 @@ per-tweet category back out to all rows.
 | --- | --- | --- |
 | `data/tweets_enriched.jsonl` | gitignored (derived) | `just enrich` |
 | `data/categories.json` | **committed** (decision) | human lock (step 2) |
-| `data/tweet_categories.csv` | **committed** (decision) | agent classify (step 3) |
+| `data/tweet_categories.csv` | gitignored (import format) | agent classify (step 3) |
+| `data/tweet_user_data.json` | **committed** (source of truth) | `just import-categories` |
+| `data/tweets_index.jsonl` | **committed** (canonical record) | `just index` |
 | `data/tweets_categorized.csv` | gitignored (derived) | `just categorize` |
 | `data/tweets_viewer.html` | gitignored (derived) | `just viewer` |
+
+See [`docs/data-model.md`](data-model.md) for the full canonical shapes, the
+build order, and the idempotence guarantees.
 
 Each enriched record (one per `message_id`) carries the tweet text
 (`tweet.text`) plus the extracted ultimate content for every outbound link
@@ -57,15 +62,23 @@ the **tweet text + ultimate content together**.
 
 - Assign **every** `message_id` to exactly one locked category, judged from the
   tweet text + ultimate content.
-- Write committed `data/tweet_categories.csv` with header `message_id,category`,
-  one row per unique tweet. Every `category` must be a `name` from
-  `categories.json`, **or** the literal `uncategorized` for tweets that
-  genuinely fit none (allowed without being listed in `categories.json`).
+- Write the staging `data/tweet_categories.csv` (untracked) with header
+  `message_id,category`, one row per unique tweet. Every `category` must be a
+  `name` from `categories.json`, **or** the literal `uncategorized` for tweets
+  that genuinely fit none (allowed without being listed in `categories.json`).
+- Run `just import-categories`. `scripts/import_categories.py` validates every
+  category fail-closed, then **merges** the categories into the committed
+  `data/tweet_user_data.json` — updating only `category` and preserving
+  `favorite`/`note`/`hidden`/`needs_review`/`suggested_*`. It is a safe upsert:
+  re-running the same CSV is a no-op.
 
-### 4. Join (deterministic)
+### 4. Build the canonical index (deterministic)
 
-- Run `just categorize`. `scripts/categorize_tweets.py` validates every category
-  against `categories.json` (+ `uncategorized`), then joins `tweets.csv` ×
-  `tweet_categories.csv` by `message_id`, writing `data/tweets_categorized.csv`
-  (original columns + a `category` column). Both rows of a single email share
-  the category; rows with no mapping entry get `uncategorized`.
+- Run `just index`. `scripts/build_index.py` joins `tweets.csv` ×
+  `tweets_enriched.jsonl` × `tweet_user_data.json` × `categories.json` and
+  fully rewrites the committed `data/tweets_index.jsonl` (the canonical record
+  every consumer reads). Then `just validate` gates it.
+- The flat per-row join `just categorize` (→ `data/tweets_categorized.csv`)
+  remains available; it now reads the category per `message_id` from
+  `tweet_user_data.json`. Both rows of a single email share the category; tweets
+  with no entry get `uncategorized`.

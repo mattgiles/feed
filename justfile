@@ -38,12 +38,92 @@ enrich *ARGS:
     fi
     npx tsx scripts/enrich_tweets.ts {{ARGS}}
 
+# Re-fetch only the enrichment records that previously errored (the freshness
+# policy): tweet.fetch_status=="unavailable" or any ultimate link fetch error.
+# Pass extra args through, e.g. `just enrich-errors --concurrency 2`.
+enrich-errors *ARGS:
+    #!/bin/sh
+    set -eu
+    if ! command -v npx >/dev/null 2>&1; then
+        echo "error: npx is not on your PATH. Install Node.js and run 'just node-install'." >&2
+        exit 1
+    fi
+    npx tsx scripts/enrich_tweets.ts --refetch-errors {{ARGS}}
+
+# Build the canonical per-tweet record stream data/tweets_index.jsonl from
+# tweets.csv x tweets_enriched.jsonl x tweet_user_data.json x categories.json.
+# Fully rewrites the committed index deterministically (idempotent).
+index *ARGS:
+    uv run python scripts/build_index.py {{ARGS}}
+
+# Acceptance gate: validate data/tweets_index.jsonl (+ tweet_user_data.json)
+# against the schema and the locked taxonomy. Exits non-zero on any problem.
+validate *ARGS:
+    uv run python scripts/validate_index.py {{ARGS}}
+
+# Merge the agent-classification staging CSV (data/tweet_categories.csv) into
+# the committed source of truth data/tweet_user_data.json (merge/upsert; safe to
+# re-run). Pass extra args through, e.g. `just import-categories --csv data/x.csv`.
+import-categories *ARGS:
+    uv run python scripts/import_categories.py {{ARGS}}
+
+# --- Per-tweet decision edits -------------------------------------------------
+# Each edits data/tweet_user_data.json then rebuilds the (committed) index.
+# Re-run `just viewer` afterwards to regenerate the HTML.
+
+# Set a tweet's category: `just set-category <message_id> <category>`.
+set-category MESSAGE_ID CATEGORY:
+    uv run python scripts/edit_user_data.py set-category {{MESSAGE_ID}} {{CATEGORY}}
+    @just index
+
+# Mark a tweet as a favorite: `just heart <message_id>`.
+heart MESSAGE_ID:
+    uv run python scripts/edit_user_data.py favorite {{MESSAGE_ID}}
+    @just index
+
+# Remove a tweet's favorite: `just unheart <message_id>`.
+unheart MESSAGE_ID:
+    uv run python scripts/edit_user_data.py unfavorite {{MESSAGE_ID}}
+    @just index
+
+# Hide a tweet from the default views: `just hide <message_id>`.
+hide MESSAGE_ID:
+    uv run python scripts/edit_user_data.py hide {{MESSAGE_ID}}
+    @just index
+
+# Unhide a tweet: `just unhide <message_id>`.
+unhide MESSAGE_ID:
+    uv run python scripts/edit_user_data.py unhide {{MESSAGE_ID}}
+    @just index
+
+# Attach a free-text note: `just note <message_id> "some text"`.
+note MESSAGE_ID TEXT:
+    uv run python scripts/edit_user_data.py note {{MESSAGE_ID}} {{quote(TEXT)}}
+    @just index
+
+# Flag a tweet for review: `just needs-review <message_id>`.
+needs-review MESSAGE_ID:
+    uv run python scripts/edit_user_data.py needs-review {{MESSAGE_ID}}
+    @just index
+
+# Record an advisory category suggestion (does not change the category):
+# `just suggest <message_id> <category> "optional reason"`.
+suggest MESSAGE_ID CATEGORY *REASON:
+    uv run python scripts/edit_user_data.py suggest {{MESSAGE_ID}} {{CATEGORY}} {{REASON}}
+    @just index
+
+# Print a plain-text status report over data/tweets_index.jsonl.
+# Pass extra args through, e.g. `just report --low 3`.
+report *ARGS:
+    uv run python scripts/report.py {{ARGS}}
+
 # Join the locked taxonomy onto every tweet row -> data/tweets_categorized.csv.
+# Reads the category per message_id from data/tweet_user_data.json.
 categorize *ARGS:
     uv run python scripts/categorize_tweets.py {{ARGS}}
 
-# Build a self-contained interactive HTML viewer of categorized tweets -> data/tweets_viewer.html.
-# Joins data/tweets.csv x data/tweet_categories.csv (overlaying data/tweets_enriched.jsonl when present).
+# Build a self-contained interactive HTML viewer -> data/tweets_viewer.html.
+# Reads the canonical data/tweets_index.jsonl, so run `just index` first.
 # Pass extra args through, e.g. `just viewer --out data/feed.html`.
 viewer *ARGS:
     uv run python scripts/build_viewer.py {{ARGS}}
