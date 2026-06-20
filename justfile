@@ -38,6 +38,18 @@ enrich *ARGS:
     fi
     npx tsx scripts/enrich_tweets.ts {{ARGS}}
 
+# Re-fetch only the enrichment records that previously errored (the freshness
+# policy): tweet.fetch_status=="unavailable" or any ultimate link fetch error.
+# Pass extra args through, e.g. `just enrich-errors --concurrency 2`.
+enrich-errors *ARGS:
+    #!/bin/sh
+    set -eu
+    if ! command -v npx >/dev/null 2>&1; then
+        echo "error: npx is not on your PATH. Install Node.js and run 'just node-install'." >&2
+        exit 1
+    fi
+    npx tsx scripts/enrich_tweets.ts --refetch-errors {{ARGS}}
+
 # Build the canonical per-tweet record stream data/tweets_index.jsonl from
 # tweets.csv x tweets_enriched.jsonl x tweet_user_data.json x categories.json.
 # Fully rewrites the committed index deterministically (idempotent).
