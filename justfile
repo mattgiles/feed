@@ -55,6 +55,45 @@ validate *ARGS:
 import-categories *ARGS:
     uv run python scripts/import_categories.py {{ARGS}}
 
+# --- Per-tweet decision edits -------------------------------------------------
+# Each edits data/tweet_user_data.json then rebuilds the (committed) index.
+# Re-run `just viewer` afterwards to regenerate the HTML.
+
+# Set a tweet's category: `just set-category <message_id> <category>`.
+set-category MESSAGE_ID CATEGORY:
+    uv run python scripts/edit_user_data.py set-category {{MESSAGE_ID}} {{CATEGORY}}
+    @just index
+
+# Mark a tweet as a favorite: `just heart <message_id>`.
+heart MESSAGE_ID:
+    uv run python scripts/edit_user_data.py favorite {{MESSAGE_ID}}
+    @just index
+
+# Remove a tweet's favorite: `just unheart <message_id>`.
+unheart MESSAGE_ID:
+    uv run python scripts/edit_user_data.py unfavorite {{MESSAGE_ID}}
+    @just index
+
+# Hide a tweet from the default views: `just hide <message_id>`.
+hide MESSAGE_ID:
+    uv run python scripts/edit_user_data.py hide {{MESSAGE_ID}}
+    @just index
+
+# Unhide a tweet: `just unhide <message_id>`.
+unhide MESSAGE_ID:
+    uv run python scripts/edit_user_data.py unhide {{MESSAGE_ID}}
+    @just index
+
+# Attach a free-text note: `just note <message_id> "some text"`.
+note MESSAGE_ID TEXT:
+    uv run python scripts/edit_user_data.py note {{MESSAGE_ID}} {{quote(TEXT)}}
+    @just index
+
+# Flag a tweet for review: `just needs-review <message_id>`.
+needs-review MESSAGE_ID:
+    uv run python scripts/edit_user_data.py needs-review {{MESSAGE_ID}}
+    @just index
+
 # Join the locked taxonomy onto every tweet row -> data/tweets_categorized.csv.
 # Reads the category per message_id from data/tweet_user_data.json.
 categorize *ARGS:
